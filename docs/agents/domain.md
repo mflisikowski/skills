@@ -1,51 +1,17 @@
-# Domain Docs
+# Domain documentation
 
-How the engineering skills should consume this repo's domain documentation when exploring the codebase.
+This repository has one domain context. Its vocabulary lives in root [CONTEXT.md](../../CONTEXT.md), and durable decisions live in [docs/adr/](../adr/).
 
-## Before exploring, read these
+## Before exploring
 
-- **`CONTEXT.md`** at the repo root, or
-- **`CONTEXT-MAP.md`** at the repo root if it exists — it points at one `CONTEXT.md` per context. Read each one relevant to the topic.
-- **`docs/adr/`** — read ADRs that touch the area you're about to work in. In multi-context repos, also check `src/<context>/docs/adr/` for context-scoped decisions.
+Read `CONTEXT.md` and the ADRs relevant to the work. Use their terms and decisions when writing code, tests, issues, and proposals.
 
-If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The `/domain-modeling` skill (reached via `/grill-with-docs` and `/improve-codebase-architecture`) creates them lazily when terms or decisions actually get resolved.
+If a needed concept is absent, resolve its meaning before adding a glossary entry. The local `/domain-modeling` workflow can help settle fuzzy or overloaded terms. Add documentation when a term or decision is resolved; missing files alone are not a reason to create placeholders.
 
-## File structure
+## Record changes
 
-Single-context repo (most repos):
+- Keep definitions in `CONTEXT.md`, with one meaning per term.
+- Record a durable decision as a numbered Markdown file under `docs/adr/`, following the existing records' context, decision, and consequences structure.
+- When a proposal conflicts with an accepted ADR, identify the record and explain why it should be reconsidered before changing the convention.
 
-```
-/
-├── CONTEXT.md
-├── docs/adr/
-│   ├── 0001-event-sourced-orders.md
-│   └── 0002-postgres-for-write-model.md
-└── src/
-```
-
-Multi-context repo (presence of `CONTEXT-MAP.md` at the root):
-
-```
-/
-├── CONTEXT-MAP.md
-├── docs/adr/                          ← system-wide decisions
-└── src/
-    ├── ordering/
-    │   ├── CONTEXT.md
-    │   └── docs/adr/                  ← context-specific decisions
-    └── billing/
-        ├── CONTEXT.md
-        └── docs/adr/
-```
-
-## Use the glossary's vocabulary
-
-When your output names a domain concept (in an issue title, a refactor proposal, a hypothesis, a test name), use the term as defined in `CONTEXT.md`. Don't drift to synonyms the glossary explicitly avoids.
-
-If the concept you need isn't in the glossary yet, that's a signal — either you're inventing language the project doesn't use (reconsider) or there's a real gap (note it for `/domain-modeling`).
-
-## Flag ADR conflicts
-
-If your output contradicts an existing ADR, surface it explicitly rather than silently overriding:
-
-> _Contradicts ADR-0007 (event-sourced orders) — but worth reopening because…_
+The local workflow tools were configured to consume `CONTEXT.md`. If an upstream update expects another filename, review the consumers and this convention together. See [development tooling](development-tooling.md).

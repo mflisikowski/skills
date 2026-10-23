@@ -1,12 +1,16 @@
-# Domain context
+# Repository vocabulary
 
-This repository maintains reusable agent skills and distributes them from `mflisikowski/skills` on GitHub.
+This repository maintains reusable agent skills for installation in other projects. Its GitHub distribution source is `mflisikowski/skills`.
 
 | Term | Meaning |
 | --- | --- |
-| Published skill | A self-contained directory under `skills/`, installed into another project or a user's agent environment. |
-| Workflow skill | A locally installed skill under `.agents/skills/` used to develop this repository. It is excluded from the published catalog. |
+| Published skill | A self-contained directory under `skills/` intended for distribution, including `SKILL.md`, required resources, and a copy of the root license. |
+| Workflow skill | A locally installed skill under the ignored `.agents/skills/` directory, used to maintain this repository. |
 | Catalog | The published skills linked in the root `README.md`. |
-| Preflight | The HTTP transport checks performed by `lighthouse-check` before browser validation or Lighthouse acceptance. |
+| Preflight | The bounded HTTP transport checks performed by `lighthouse-check`, covering the document and selected resources. Its verdict is separate from audit execution status. |
+| Audit | The evidence-collection workflow and resulting report. A full audit combines preflight, browser scenario validation, and Lighthouse measurements. |
+| Report review | Offline analysis of saved Lighthouse exports. It makes no observation about the current deployment. |
+| Deployment acceptance | An assessment that the intended deployment meets the requested criteria. Completing an audit alone does not establish acceptance. |
+| Artifact | A generated measurement, screenshot, log, or report kept under an ignored artifact directory. Written ticket completion evidence can reference artifacts while remaining tracked. |
 
-The repository uses one domain context. Record durable decisions under `docs/adr/`. Local development work lives under `.scratch/` as specified in `docs/agents/issue-tracker.md`.
+The repository has one domain context. Use these terms in code, issues, and documentation. Record durable decisions under [docs/adr/](docs/adr/) and development work under [.scratch/](.scratch/README.md), following the [tracker conventions](docs/agents/issue-tracker.md).

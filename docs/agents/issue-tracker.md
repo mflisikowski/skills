@@ -1,34 +1,39 @@
-# Issue tracker: Local Markdown
+# Issue tracker: local Markdown
 
-Issues and specs (you may know a spec as a PRD) for this repo live as markdown files in `.scratch/`.
+Specs, issues, and decision maps live in tracked Markdown files under `.scratch/`. Each feature or effort has its own directory.
 
-## Conventions
+## File layout
 
-- One feature per directory: `.scratch/<feature-slug>/`
-- The spec is `.scratch/<feature-slug>/spec.md`
-- Implementation issues are one file per ticket at `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01` — never a single combined tickets file
-- Triage state is recorded as a `Status:` line near the top of each issue file (see `triage-labels.md` for the role strings)
-- Comments and conversation history append to the bottom of the file under a `## Comments` heading
+| Path | Contents |
+| --- | --- |
+| `.scratch/<feature>/spec.md` | The agreed scope and acceptance criteria. |
+| `.scratch/<feature>/issues/NN-<slug>.md` | One implementation or decision ticket, numbered from `01`. |
+| `.scratch/<effort>/map.md` | A wayfinding map with Notes, Decisions-so-far, and Fog sections. |
+| `.scratch/<feature>/artifacts/` | Generated files, ignored by Git. |
 
-## When a skill says "publish to the issue tracker"
+Keep specs, tickets, decisions, and written completion evidence in Git. Keep measurements, screenshots, and tool caches in ignored artifact directories; check [.gitignore](../../.gitignore) for the complete exclusions.
 
-Create a new file under `.scratch/<feature-slug>/` (creating the directory if needed).
+## Translate tracker operations
 
-## When a skill says "fetch the relevant ticket"
+When a workflow says to publish to the issue tracker, create the appropriate file in the feature directory. When it says to fetch a ticket, read the referenced file. Resolve a bare ticket number within the named feature or effort; numbers are not unique across the repository.
 
-Read the file at the referenced path. The user will normally pass the path or the issue number directly.
+Put `Status:`, `Blocked by:`, and, where applicable, `Type:` near the top of a ticket. Use `Blocked by: none` for an unblocked ticket or a comma-separated list of ticket numbers from the same effort. Append conversation and updates under `## Comments`.
 
-## Wayfinding operations
+## Implementation tickets
 
-Used by `/wayfinder`. The **map** is a file with one **child** file per ticket.
+Use one file per ticket so it can be read and completed independently. State the required behavior and checkable acceptance criteria, and link the relevant spec or decisions. Record incoming reports with the exact [triage role strings](triage-labels.md).
 
-- **Map**: `.scratch/<effort>/map.md` — the Notes / Decisions-so-far / Fog body.
-- **Child ticket**: `.scratch/<effort>/issues/NN-<slug>.md`, numbered from `01`, with the question in the body. A `Type:` line records the ticket type (`research`/`prototype`/`grilling`/`task`); a `Status:` line records `claimed`/`resolved`.
-- **Blocking**: a `Blocked by: NN, NN` line near the top. A ticket is unblocked when every file it lists is `resolved`.
-- **Frontier**: scan `.scratch/<effort>/issues/` for files that are open, unblocked, and unclaimed; first by number wins.
-- **Claim**: set `Status: claimed` and save before any work.
-- **Resolve**: append the answer under an `## Answer` heading, set `Status: resolved`, then append a context pointer (gist + link) to the map's Decisions-so-far in `map.md`.
+Work blockers first. A ticket is unblocked when every ticket in its `Blocked by:` line is `resolved`. After its acceptance criteria pass, set `Status: resolved` and record validation under `## Completion evidence`, including any material limitations.
 
-## Completing implementation tickets
+`resolved` is a completion state, not a triage role.
 
-Set `Status: resolved` after the ticket's acceptance criteria pass and record evidence under `## Completion evidence`. `resolved` is a completion state, not an additional triage role.
+## Wayfinding tickets
+
+The local `/wayfinder` workflow uses a map and child tickets to resolve questions before implementation. Each child records the question and a `Type:` of `research`, `prototype`, `grilling`, or `task`.
+
+1. Scan the effort's `issues/` directory for open, unblocked, unclaimed tickets. Select the lowest number.
+2. Set `Status: claimed` and save before working on it.
+3. Append the answer under `## Answer`, then set `Status: resolved`.
+4. Add a brief result and a relative link to the ticket in the map's Decisions-so-far section.
+
+These tickets produce decisions. Turn the resolved map into a spec and implementation tickets when the effort is ready to build.
