@@ -12,6 +12,10 @@ Use `gh` with the `mflisikowski` account for GitHub operations. Write all commit
 
 ## Agent skills
 
+### Skill authoring
+
+When creating, editing, or reviewing skills, follow `docs/agents/skill-authoring.md`. Apply these principles in your own work; teaching the user is a separate request.
+
 ### Issue tracker
 
 Issues and specs live as local Markdown under `.scratch/<feature-slug>/`. See `docs/agents/issue-tracker.md`.
