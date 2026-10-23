@@ -1,0 +1,11 @@
+.DS_Store
+.venv/
+__pycache__/
+*.py[cod]
+node_modules/
+.agents/skills/
+.codex/
+.scratch/**/artifacts/
+.scratch/**/preflight.json
+.scratch/**/lighthouse-*.json
+.scratch/**/lighthouse-*.html
