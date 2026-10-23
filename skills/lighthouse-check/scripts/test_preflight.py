@@ -43,6 +43,8 @@ class Handler(BaseHTTPRequestHandler):
             body = f'<html><head><script type="module" src="{asset}"></script><link rel="stylesheet" href="/app.css"></head><body>test</body></html>'.encode()
             if self.path == '/empty.html':
                 body = b'<html><body>No startup assets</body></html>'
+            if self.path == '/external.html':
+                body += f'<script src="http://localhost:{self.server.server_port}/app.js"></script>'.encode()
         elif self.path == '/app.css':
             mime, body = 'text/css', CSS
         elif self.path == '/tiny.js':
@@ -121,6 +123,47 @@ class PreflightTests(unittest.TestCase):
         process, report = self.probe('/plain.html')
         self.assertEqual(process.returncode, 1)
         self.assertEqual(report['verdict'], 'BLOCKED')
+
+    def test_skipped_external_asset_prevents_complete_coverage(self):
+        process, report = self.probe('/external.html')
+        self.assertEqual(process.returncode, 2)
+        self.assertEqual(report['verdict'], 'INCONCLUSIVE')
+        self.assertFalse(report['coverage_complete'])
+        external = f'http://localhost:{self.server.server_port}/app.js'
+        self.assertIn(external, report['skipped_assets'])
+        process, report = self.probe('/external.html', '--asset', external)
+        self.assertEqual(process.returncode, 0, process.stdout)
+        self.assertTrue(report['coverage_complete'])
+        self.assertEqual(report['skipped_assets'], [])
+
+    def test_external_discovery_can_be_completed_by_agent_within_limits(self):
+        process, report = self.probe('/external.html', '--include-external')
+        self.assertEqual(process.returncode, 0, process.stderr)
+        self.assertTrue(report['coverage_complete'])
+        self.assertEqual(len(report['rows']), 4)
+        process, report = self.probe('/external.html', '--include-external', '--max-assets', '1')
+        self.assertEqual(process.returncode, 2)
+        self.assertFalse(report['coverage_complete'])
+        self.assertEqual(len(report['skipped_assets']), 2)
+
+    def test_markdown_and_http_measurements_exist_for_all_verdicts(self):
+        for path, expected in [('/ok.html', 'PASS'), ('/plain.html', 'BLOCKED'),
+                               ('/external.html', 'INCONCLUSIVE')]:
+            with self.subTest(path=path), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / 'preflight.json'
+                process = subprocess.run([sys.executable, str(SCRIPT), self.base + path,
+                                          '--output', str(output), '--language', 'pl'],
+                                         capture_output=True, text=True, timeout=15)
+                self.assertTrue(output.exists(), process.stderr)
+                report = json.loads(output.read_text())
+                self.assertEqual(report['verdict'], expected)
+                markdown = output.with_suffix('.md').read_text()
+                self.assertIn(self.base + path, markdown)
+                self.assertIn(expected, markdown)
+                response = report['rows'][0]['compressed']
+                self.assertGreaterEqual(response['timings']['first_byte_seconds'], 0)
+                self.assertIn(response['http_version'], {'1', '1.0', '1.1', '2', '3'})
+                self.assertTrue(report['http_document_available'])
 
     def test_vary_alone_does_not_pass(self):
         process, report = self.probe('/vary-only.html')

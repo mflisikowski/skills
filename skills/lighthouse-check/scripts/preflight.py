@@ -13,10 +13,12 @@ import sys
 import tempfile
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
+from reporting import link, preflight_markdown
+
 
 SAFE_HEADERS = {
     'content-type', 'content-encoding', 'content-length', 'vary', 'cache-control',
-    'etag', 'server', 'age', 'x-cache', 'x-request-id', 'neuca-server', 'x-neuca-ray',
+    'etag', 'last-modified', 'expires', 'server', 'age', 'x-cache', 'x-request-id', 'neuca-server', 'x-neuca-ray',
 }
 TEXT_TYPES = {
     'text/html', 'text/css', 'text/plain', 'text/javascript', 'application/javascript',
@@ -26,13 +28,13 @@ TEXT_TYPES = {
 JS_TYPES = {'application/javascript', 'text/javascript', 'application/x-javascript'}
 
 
-def web_url(value):
+def web_url(value, *, keep_fragment=False):
     parsed = urlsplit(value)
     if parsed.scheme not in {'http', 'https'} or not parsed.hostname:
         raise ValueError('Expected an absolute HTTP(S) URL')
     if parsed.username or parsed.password:
         raise ValueError('Use a public test URL without credentials in the URL')
-    return urlunsplit(parsed._replace(fragment=''))
+    return urlunsplit(parsed if keep_fragment else parsed._replace(fragment=''))
 
 
 def headers_from_dump(text):
@@ -79,6 +81,11 @@ def fetch(url, compressed, timeout):
             'downloaded_bytes': int(meta['size_download']), 'decoded_bytes': len(body),
             'sha256': hashlib.sha256(body).hexdigest(), 'seconds': meta['time_total'],
             'redirects': meta['num_redirects'],
+            'http_version': meta['http_version'],
+            'timings': {name: meta[key] for name, key in {
+                'dns_seconds': 'time_namelookup', 'connect_seconds': 'time_connect',
+                'tls_seconds': 'time_appconnect', 'first_byte_seconds': 'time_starttransfer',
+            }.items()},
         }
         return result, body
 
@@ -166,10 +173,11 @@ def inspect(url, kind, threshold, timeout, page=None):
     return row, body
 
 
-def check(url, assets, threshold=1024, timeout=15, max_assets=24):
+def check(url, assets, threshold=1024, timeout=15, max_assets=24, include_external=False):
     report = {'checked_at': datetime.now(timezone.utc).isoformat(), 'requested_url': url,
-              'scope': 'HTML and discovered same-origin startup assets plus explicit URLs',
-              'warnings': [], 'rows': []}
+              'scope': 'HTML, discovered startup JS/CSS ' + ('including cross-origin' if include_external else 'from the same origin') + ', and explicit URLs',
+              'include_external': include_external,
+              'warnings': [], 'rows': [], 'skipped_assets': []}
     version = subprocess.run(['curl', '--version'], capture_output=True, text=True, check=True)
     report['curl_version'] = version.stdout.splitlines()[0]
     page = fetch(url, True, timeout)
@@ -182,25 +190,32 @@ def check(url, assets, threshold=1024, timeout=15, max_assets=24):
         parser.feed(html.decode('utf-8', errors='replace'))
         final_url = row['compressed']['url']
         base = urljoin(final_url, parser.base or final_url)
-        origin = urlsplit(final_url).netloc
+        origin = urlsplit(final_url)[:2]
         urls = {}
+        external = set()
         for path, kind in parser.assets:
             resolved = urljoin(base, path)
             if urlsplit(resolved).scheme not in {'http', 'https'}:
                 continue
-            if urlsplit(resolved).netloc != origin:
-                report['warnings'].append(f'External startup asset not probed; use --asset if critical: {resolved}')
-                continue
+            if urlsplit(resolved)[:2] != origin:
+                external.add(resolved)
+                if not include_external:
+                    continue
             urls[resolved] = kind
         for asset in assets:
             path = urlsplit(asset).path
             kind = 'js' if path.endswith(('.js', '.mjs', '.tsx', '.ts', '.jsx')) else 'css' if path.endswith('.css') else 'explicit'
             urls[asset] = urls.get(asset, kind)
+        report['skipped_assets'] = sorted(external.difference(urls))
+        if report['skipped_assets']:
+            coverage_incomplete = True
+            report['warnings'].append('External startup assets were not probed; coverage is incomplete')
         if not urls:
             coverage_incomplete = True
             report['warnings'].append('No startup JS/CSS found; inspect browser discovery or supply --asset URLs')
         if len(urls) > max_assets:
             coverage_incomplete = True
+            report['skipped_assets'].extend(list(urls)[max_assets:])
             report['warnings'].append(f'Discovered {len(urls)} assets, probing only {max_assets}; increase --max-assets')
         for asset, kind in list(urls.items())[:max_assets]:
             result, _ = inspect(asset, kind, threshold, timeout)
@@ -212,6 +227,10 @@ def check(url, assets, threshold=1024, timeout=15, max_assets=24):
         verdict = 'INCONCLUSIVE'
     else:
         verdict = 'PASS'
+    report['http_document_available'] = not row.get('inconclusive') and (
+        row['compressed'].get('status') == 200 and content_type == 'text/html')
+    report['coverage_complete'] = report['http_document_available'] and not coverage_incomplete and not any(
+        r.get('inconclusive') for r in report['rows'])
     report['verdict'] = verdict
     report['next_step'] = {'PASS': 'Browser smoke check and resolve warnings before Lighthouse acceptance',
                            'BLOCKED': 'Fix failed HTTP/compression checks before Lighthouse acceptance',
@@ -224,6 +243,8 @@ def main():
     parser.add_argument('url')
     parser.add_argument('--asset', action='append', default=[], help='Additional dynamic chunk/CDN/API URL')
     parser.add_argument('--output', type=Path, help='Write structured JSON evidence')
+    parser.add_argument('--language', choices=['en', 'pl'], default='en')
+    parser.add_argument('--include-external', action='store_true', help='Probe discovered cross-origin startup assets within the same limits')
     parser.add_argument('--min-bytes', type=int, default=1024)
     parser.add_argument('--timeout', type=int, default=15, help='Maximum seconds per GET')
     parser.add_argument('--max-assets', type=int, default=24)
@@ -237,7 +258,7 @@ def main():
         assets = [web_url(asset) for asset in args.asset]
     except ValueError as error:
         parser.error(str(error))
-    report = check(url, assets, args.min_bytes, args.timeout, args.max_assets)
+    report = check(url, assets, args.min_bytes, args.timeout, args.max_assets, args.include_external)
     print(f'{report["verdict"]}: {report["next_step"]}')
     print('encoding | downloaded / decoded bytes | result | URL')
     for row in report['rows']:
@@ -251,10 +272,13 @@ def main():
             print(f'  - {response["error"]}')
     for warning in report['warnings']:
         print(f'WARNING: {warning}')
-    if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(report, indent=2, ensure_ascii=False) + '\n')
-        print(f'Evidence: {args.output}')
+    output = args.output or Path('.scratch/lighthouse-check/artifacts') / (
+        datetime.now(timezone.utc).strftime('preflight-%Y%m%dT%H%M%S%fZ.json'))
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(report, indent=2, ensure_ascii=False) + '\n')
+    markdown = output.with_suffix('.md') if output.suffix.lower() != '.md' else output.with_name(output.name + '.md')
+    markdown.write_text(preflight_markdown(report, args.language) + '\n' + link(output.name) + '\n')
+    print(f'Evidence: {output}\nReport: {markdown}')
     return {'PASS': 0, 'BLOCKED': 1, 'INCONCLUSIVE': 2}[report['verdict']]
 
 

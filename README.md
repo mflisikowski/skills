@@ -6,7 +6,7 @@ Reusable agent skills built from practical engineering workflows.
 
 | Skill | Use it for |
 | --- | --- |
-| [lighthouse-check](skills/lighthouse-check/SKILL.md) | Verify deployed HTTP compression and browser readiness before Lighthouse, or review reports against their test conditions. |
+| [lighthouse-check](skills/lighthouse-check/SKILL.md) | Ask the agent to run HTTP preflight and Lighthouse, then save a Markdown report with evidence and recommendations. Also supports preflight-only checks and existing reports. |
 
 ## Install
 
@@ -25,7 +25,11 @@ To test this checkout locally before publishing:
 npx skills@1.7.4 add /absolute/path/to/skills.mflisikowski.dev/skills --list
 ```
 
-`lighthouse-check` needs Python 3 and curl 7.70 or later with compression support for its transport helper. Actual browser checks and Lighthouse measurement also need the appropriate browser and audit tooling. The skill does not install those tools.
+After installation, ask the agent, for example: “Use `$lighthouse-check` to audit https://example.com/ and save a report in Polish.” The agent runs the tools and delivers a linked Markdown file. You can also request only the HTTP checks or analysis of existing Lighthouse JSON/HTML reports.
+
+`lighthouse-check` uses Python 3 and curl 7.70 or later with compression support. Full measurement also needs Node.js compatible with the selected Lighthouse version and Chrome/Chromium. The agent discovers project tools or prepares the bundled Lighthouse version in an isolated audit directory; it leaves application dependencies untouched. The bundled version requires Node.js 22.19 or later. Missing prerequisites or access produce an incomplete report with the reason. Preparation requires network access and the environment's execution permissions.
+
+Full audits default to three sequential mobile runs with fresh browser profiles. Results include a Markdown report, HTTP evidence, a browser screenshot, each Lighthouse JSON report, settings, versions, medians and ranges. Output goes under a unique `.scratch/lighthouse-check/artifacts/` directory. The first supported live scenario is public anonymous navigation; authenticated workflows need explicit scenario handling by the agent. HTTP findings remain visible even when a diagnostic Lighthouse measurement can proceed.
 
 ## Develop
 
@@ -38,6 +42,10 @@ python3 -m venv .venv
 ```
 
 The check validates the published catalog, bundled licenses and resource links, then runs validator and bundled Python helper tests. Helper tests use a local HTTP server and actual curl requests; no deployed website is needed.
+
+The real-browser contract test is opt-in. Set `LIGHTHOUSE_TEST_TOOLS` to the absolute package root containing an installed Lighthouse and run `python3 skills/lighthouse-check/scripts/test_live.py`. It measures compressed and uncompressed fixtures with real Chrome after relocating the skill, checks mobile and desktop profiles, and preserves all attempts when `LIGHTHOUSE_TEST_OUTPUT` points to a fresh artifact directory. This test requires browser execution permissions; it is separate from the default checks.
+
+Set `LIGHTHOUSE_TEST_BOOTSTRAP=1` as well to verify automatic preparation in a fresh isolated directory for the desktop case. This additional path downloads tools and requires network access.
 
 Add your reusable skills under `skills/<skill-name>/`. Keep instructions in `SKILL.md`; include scripts, references, or assets when the workflow needs them, and link required local resources so validation detects missing files. Include an unchanged copy of the root `LICENSE` in each skill directory. Update the table above whenever the published catalog changes.
 

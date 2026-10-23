@@ -1,3 +1,3 @@
 interface:
   display_name: "Lighthouse Check"
-  short_description: "Check deployment compression before Lighthouse"
+  short_description: "Audit websites and save a Markdown report with evidence"

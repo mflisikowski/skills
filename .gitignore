@@ -6,6 +6,7 @@ node_modules/
 .agents/skills/
 .codex/
 .scratch/**/artifacts/
+.scratch/**/evidence/
 .scratch/**/preflight.json
 .scratch/**/lighthouse-*.json
 .scratch/**/lighthouse-*.html
