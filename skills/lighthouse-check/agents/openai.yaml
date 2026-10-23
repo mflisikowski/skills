@@ -1,0 +1,3 @@
+interface:
+  display_name: "Lighthouse Check"
+  short_description: "Check deployment compression before Lighthouse"
